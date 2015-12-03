@@ -1,5 +1,5 @@
 """
-Flask-JsonSchema
+Flask-JsonSchemer
 ----------
 
 A Flask extension for validating JSON requets with jsonschema
@@ -9,19 +9,22 @@ from setuptools import setup
 
 
 setup(
-    name='Flask-JsonSchema',
-    version='0.1.0',
-    url='https://github.com/mattupstate/flask-jsonschema',
+    name='Flask-JsonSchemer',
+    version='0.0.1',
+    url='https://github.com/juztin/flask-jsonschemer',
     license='MIT',
-    author='Matt Wright',
-    author_email='matt@nobien.net',
+    author='Matt Wright, Justin Wilson',
+    author_email='matt@nobien.net, jsonschemer@minty.io',
     description='Flask extension for validating JSON requets',
     long_description=__doc__,
-    py_modules=['flask_jsonschema'],
+    py_modules=['flask_jsonschemer'],
     test_suite='nose.collector',
     zip_safe=False,
     platforms='any',
-    install_requires=['Flask>=0.9', 'jsonschema>=1.1.0'],
+    install_requires=[
+        'Flask>=0.9',
+        'jsonschema>=2.5.1'
+    ],
     tests_require=['nose'],
     classifiers=[
         'Development Status :: 4 - Beta',

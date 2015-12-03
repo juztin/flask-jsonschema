@@ -1,65 +1,73 @@
-# -*- coding: utf-8 -*-
 """
-    flask_jsonschema
+    flask_jsonschemer
     ~~~~~~~~~~~~~~~~
 
-    flask_jsonschema
+    flask_jsonschemer
 """
 
 import os
-
 from functools import wraps
 
-try:
-    import simplejson as json
-except ImportError:
-    import json
-
-from flask import current_app, request
-from jsonschema import ValidationError, validate
+from flask import current_app, request, json
+from jsonschema import ValidationError, validate as _validate
 
 
-class _JsonSchema(object):
-    def __init__(self, schemas):
-        self._schemas = schemas
-
-    def get_schema(self, path):
-        rv = self._schemas[path[0]]
-        for p in path[1:]:
-            rv = rv[p]
-        return rv
+_methods = ('POST', 'PUT', 'PATCH')
 
 
-class JsonSchema(object):
-    def __init__(self, app=None):
+class JsonSchemer(object):
+    def __init__(self, app=None, format_checker=None):
         self.app = app
+        self.format_checker = format_checker
         if app is not None:
-            self._state = self.init_app(app)
+            self.init_app(app)
 
     def init_app(self, app):
-        default_dir = os.path.join(app.root_path, 'jsonschema')
-        schema_dir = app.config.get('JSONSCHEMA_DIR', default_dir)
-        schemas = {}
-        for fn in os.listdir(schema_dir):
-            key = fn.split('.')[0]
-            fn = os.path.join(schema_dir, fn)
-            if os.path.isdir(fn) or not fn.endswith('.json'):
-                continue
-            with open(fn) as f:
-                schemas[key] = json.load(f)
-        state = _JsonSchema(schemas)
-        app.extensions['jsonschema'] = state
-        return state
+        # Load schemas
+        default_path = os.path.join(app.root_path, 'schemas')
+        path = app.config.get('JSONSCHEMER_DIR', default_path)
+        self._schemas = load_schemas(path)
 
-    def validate(self, *path):
-        def wrapper(fn):
-            @wraps(fn)
-            def decorated(*args, **kwargs):
-                schema = current_app.extensions['jsonschema'].get_schema(path)
-                validate(request.json, schema)
+        # Set schema extension
+        if not hasattr(app, 'extensions'):
+            app.extensions = {}
+        app.extensions['jsonschemer'] = self
+
+    def get_schema(self, path):
+        schema = self._schemas[path[0]]
+        for p in path[1:]:
+            schema = schema[p]
+        return schema
+
+
+def load_schemas(path):
+    schemas = {}
+    for p in os.listdir(path):
+        key = p.split('.')[0]
+        p = os.path.join(path, p)
+        if os.path.isdir(p) or not p.endswith('.json'):
+            continue
+        with open(p, 'r') as f:
+            schemas[key] = json.load(f)
+    return schemas
+
+
+def validate(*path):
+    def wrapper(fn):
+        @wraps(fn)
+        def decorated(*args, **kwargs):
+            methods = current_app.config.get('JSONSCHEMER_METHODS', _methods)
+            jsonschemer = current_app.extensions.get('jsonschemer', None)
+            if request.method not in methods:
                 return fn(*args, **kwargs)
-            return decorated
-        return wrapper
+            elif jsonschemer is None:
+                raise RuntimeError('Flask-JsonSchemer was not properly '
+                                   'initialized for the current '
+                                   'application: %s' % current_app)
 
-    def __getattr__(self, name):
-        return getattr(self._state, name, None)
+            data = request.get_json(silent=True)
+            schema = jsonschemer.get_schema(path)
+            _validate(data, schema, format_checker=jsonschemer.format_checker)
+            return fn(*args, **kwargs)
+        return decorated
+    return wrapper
